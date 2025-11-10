@@ -1,0 +1,24 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  # Servicio de Base de Datos
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_ecom
+    restart: always
+    ports:
+      - "27017:27017"
+    # Opcional: Define un volumen para que los datos persistan
+    volumes:
+      - mongo-data:/data/db 
+
+  # Servicio de tu API de Node.js (opcionalmente)
+  # api:
+  #   build: .
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - mongodb # Asegura que la DB inicie primero
+
+volumes:
+  mongo-data:
