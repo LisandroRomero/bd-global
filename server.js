@@ -16,6 +16,7 @@ app.use('/api/usuarios', require('./routes/usuarioRoutes'));
 app.use('/api/productos', require('./routes/productoRoutes'));
 app.use('/api/ordenes', require('./routes/pedidoRoutes'));
 app.use('/api/categorias', require('./routes/categoriaRoutes'))
+app.use('/api/carrito', require('./routes/carritoRoutes'))
 
 // 3. MIDDLEWARE DE MANEJO GLOBAL DE ERRORES (al final de las rutas)
 app.use(errorMiddleware); 
