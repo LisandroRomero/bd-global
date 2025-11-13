@@ -1,4 +1,5 @@
 const Carrito = require('../models/Carrito');
+const mongoose = require('mongoose');
 
 // ==============================
 // GET: Obtener Carrito del Usuario (REQUIERE TOKEN)
@@ -30,15 +31,45 @@ exports.getCarrito = async (req, res, next) => {
 };
 
 // ==============================
-// POST: Agregar Ítem al Carrito (Uso del Operador $push)
+// POST: Agregar Ítem(s) al Carrito (Acepta objeto individual o array)
 // ==============================
 exports.agregarItem = async (req, res, next) => {
     try {
         const usuarioId = req.usuario._id;
-        const { productoId, cantidad } = req.body;
+        const body = req.body;
         
-        if (!productoId || !cantidad || cantidad < 1) {
-            return res.status(400).json({ success: false, error: { message: 'ID de producto y cantidad válidos son obligatorios.' } });
+        // Determinar si es un array o un objeto individual
+        const items = Array.isArray(body) ? body : [body];
+        
+        // Validar cada item
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const { productoId, cantidad } = item;
+            
+            // Validar que productoId exista y no esté vacío
+            if (!productoId || (typeof productoId === 'string' && productoId.trim() === '')) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: `ID de producto es obligatorio en el item ${i + 1}.` } 
+                });
+            }
+
+            // Validar que cantidad exista y sea un número válido
+            const cantidadNum = Number(cantidad);
+            if (!cantidad || isNaN(cantidadNum) || cantidadNum < 1 || !Number.isInteger(cantidadNum)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: `Cantidad debe ser un número entero mayor a 0 en el item ${i + 1}.` } 
+                });
+            }
+
+            // Validar que productoId sea un ObjectId válido
+            if (!mongoose.Types.ObjectId.isValid(productoId)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: `ID de producto inválido en el item ${i + 1}. Debe ser un ObjectId válido de MongoDB.` } 
+                });
+            }
         }
 
         // Buscar el carrito o crearlo si no existe
@@ -47,27 +78,26 @@ exports.agregarItem = async (req, res, next) => {
             carrito = await Carrito.create({ usuario: usuarioId, items: [] });
         }
 
-        // 1. Verificar si el producto ya está en el carrito
-        const itemExistente = carrito.items.find(
-            item => item.producto.toString() === productoId
-        );
-
-        if (itemExistente) {
-            // Si existe, solo actualizamos la cantidad
-            itemExistente.cantidad += cantidad;
-            await carrito.save();
-        } else {
-            // Si no existe, usamos $push para añadir el nuevo ítem
-            carrito = await Carrito.findOneAndUpdate(
-                { usuario: usuarioId },
-                { 
-                    $push: { 
-                        items: { producto: productoId, cantidad: cantidad } 
-                    } 
-                },
-                { new: true, runValidators: true }
+        // Procesar cada item
+        for (const item of items) {
+            const { productoId, cantidad } = item;
+            const cantidadNum = Number(cantidad);
+            
+            // Verificar si el producto ya está en el carrito
+            const itemExistente = carrito.items.find(
+                itemCarrito => itemCarrito.producto.toString() === productoId.toString()
             );
+
+            if (itemExistente) {
+                // Si existe, solo actualizamos la cantidad
+                itemExistente.cantidad += cantidadNum;
+            } else {
+                // Si no existe, añadimos el nuevo ítem usando push del array (Mongoose hace el cast automático)
+                carrito.items.push({ producto: productoId, cantidad: cantidadNum });
+            }
         }
+
+        await carrito.save();
 
         res.status(200).json({ 
             success: true, 
