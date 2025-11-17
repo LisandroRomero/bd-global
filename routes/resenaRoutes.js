@@ -19,7 +19,9 @@ router.get('/top', resenaController.getTopCalificaciones);
 // GET /api/resenas/product/:productId → reseñas de un producto 
 router.get('/product/:productId', resenaController.getResenasProducto);
 
+// PATCH /api/resenas/:id → actualizar reseña (solo el dueño puede actualizar)
+router.patch('/:id', protegerRuta, resenaController.actualizarResena);
+
 module.exports = router;
 
 // eliminarReseña
-// actualizarReseña
