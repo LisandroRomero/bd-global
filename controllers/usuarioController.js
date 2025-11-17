@@ -61,33 +61,11 @@ exports.login = async (req, res, next) => {
 };
 
 // ==============================
-// GET: Listar Todos los Usuarios (REQUIERE ADMIN - Requisito del parcial)
-// ==============================
-exports.listarUsuarios = async (req, res, next) => {
-    try {
-        // La protección de rol 'administrador' debe estar en la ruta.
-        const usuarios = await Usuario.find().select('-direccion -telefono'); // Ocultamos campos menos relevantes
-
-        res.status(200).json({
-            success: true,
-            count: usuarios.length,
-            data: usuarios
-        });
-    } catch (err) {
-        next(err);
-    }
-};
-
-
-// ==============================
 // GET: Listar Todos los Usuarios (SOLO ADMIN)
-// ===================================
+// ==============================
 exports.listarUsuarios = async (req, res, next) => {
     try {
         // La protección de rol 'administrador' ocurre en la ruta.
-        
-        // 1. Buscamos todos los usuarios.
-        // Usamos .select('-campo') para excluir la contraseña y otros datos sensibles.
         const usuarios = await Usuario.find().select('-contrasena'); 
 
         res.status(200).json({
@@ -100,4 +78,143 @@ exports.listarUsuarios = async (req, res, next) => {
     }
 };
 
-// ... Aquí irían las funciones de actualizar y eliminar usuario (CRUD)
+// ==============================
+// GET: Obtener Perfil del Usuario (Requiere Token)
+// ==============================
+exports.getMiPerfil = async (req, res, next) => {
+    try {
+        const usuarioId = req.usuario._id; // Obtenido del JWT
+        
+        const usuario = await Usuario.findById(usuarioId).select('-contrasena');
+
+        if (!usuario) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'Usuario no encontrado.' }
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: usuario
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ==============================
+// PATCH: Actualizar Usuario (Requiere Token - Solo propio perfil o Admin)
+// ==============================
+exports.actualizarUsuario = async (req, res, next) => {
+    try {
+        const usuarioId = req.usuario._id; // Usuario del token
+        const { id } = req.params; // ID del usuario a actualizar
+        const usuarioRol = req.usuario.rol; // Rol del usuario del token
+
+        // Verificar permisos: solo puede actualizar su propio perfil o ser admin
+        if (usuarioId.toString() !== id && usuarioRol !== 'administrador') {
+            return res.status(403).json({
+                success: false,
+                error: { message: 'No tienes permiso para actualizar este usuario.' }
+            });
+        }
+
+        // Preparar campos a actualizar (excluir campos sensibles)
+        const camposPermitidos = ['nombre', 'direccion', 'telefono'];
+        const camposActualizar = {};
+
+        // Si es admin, también puede actualizar el rol
+        if (usuarioRol === 'administrador') {
+            camposPermitidos.push('rol');
+        }
+
+        // Construir objeto de actualización solo con campos permitidos
+        Object.keys(req.body).forEach(key => {
+            if (camposPermitidos.includes(key)) {
+                camposActualizar[key] = req.body[key];
+            }
+        });
+
+        // Verificar que se proporcionó al menos un campo para actualizar
+        if (Object.keys(camposActualizar).length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: { 
+                    message: 'Debes proporcionar al menos un campo para actualizar.',
+                    camposPermitidos: camposPermitidos
+                }
+            });
+        }
+
+        // Actualizar el usuario
+        const usuarioActualizado = await Usuario.findByIdAndUpdate(
+            id,
+            { $set: camposActualizar },
+            { new: true, runValidators: true }
+        ).select('-contrasena');
+
+        if (!usuarioActualizado) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'Usuario no encontrado.' }
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: usuarioActualizado
+        });
+
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ==============================
+// DELETE: Eliminar Usuario (Requiere Token - Solo Admin o propio usuario)
+// ==============================
+exports.eliminarUsuario = async (req, res, next) => {
+    try {
+        const usuarioId = req.usuario._id; // Usuario del token
+        const { id } = req.params; // ID del usuario a eliminar
+        const usuarioRol = req.usuario.rol; // Rol del usuario del token
+
+        // Verificar permisos: solo puede eliminar su propia cuenta o ser admin
+        if (usuarioId.toString() !== id && usuarioRol !== 'administrador') {
+            return res.status(403).json({
+                success: false,
+                error: { message: 'No tienes permiso para eliminar este usuario.' }
+            });
+        }
+
+        // Prevenir que un admin se elimine a sí mismo (opcional pero recomendado)
+        if (usuarioId.toString() === id && usuarioRol === 'administrador') {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Un administrador no puede eliminar su propia cuenta desde esta ruta.' }
+            });
+        }
+
+        const usuarioEliminado = await Usuario.findByIdAndDelete(id);
+
+        if (!usuarioEliminado) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'Usuario no encontrado.' }
+            });
+        }
+
+        // ⚠️ Nota: En un sistema real, aquí deberías manejar la eliminación o desvinculación
+        // de los carritos, pedidos y reseñas relacionados con este usuario.
+
+        res.status(200).json({
+            success: true,
+            data: null,
+            message: 'Usuario eliminado correctamente.'
+        });
+
+    } catch (err) {
+        next(err);
+    }
+};
