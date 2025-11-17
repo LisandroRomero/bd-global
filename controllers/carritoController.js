@@ -1,4 +1,5 @@
 const Carrito = require('../models/Carrito');
+const Producto = require('../models/Producto');
 const mongoose = require('mongoose');
 
 // ==============================
@@ -9,7 +10,7 @@ exports.getCarrito = async (req, res, next) => {
         const usuarioId = req.usuario._id; // Obtenido del JWT
 
         // Buscar el carrito y poblar los detalles del producto
-        const carrito = await Carrito.findOne({ usuario: usuarioId }).populate({
+        let carrito = await Carrito.findOne({ usuario: usuarioId }).populate({
             path: 'items.producto',
             select: 'nombre precio stock'
         });
@@ -18,6 +19,15 @@ exports.getCarrito = async (req, res, next) => {
             // Si no existe, lo creamos para el usuario.
             const nuevoCarrito = await Carrito.create({ usuario: usuarioId, items: [] });
             return res.status(200).json({ success: true, data: nuevoCarrito });
+        }
+
+        // Limpiar items con productos eliminados (producto === null)
+        const itemsValidos = carrito.items.filter(item => item.producto !== null);
+        
+        // Si hay items eliminados, actualizar el carrito
+        if (itemsValidos.length !== carrito.items.length) {
+            carrito.items = itemsValidos;
+            await carrito.save();
         }
 
         res.status(200).json({ 
@@ -70,6 +80,19 @@ exports.agregarItem = async (req, res, next) => {
                     error: { message: `ID de producto inválido en el item ${i + 1}. Debe ser un ObjectId válido de MongoDB.` } 
                 });
             }
+
+            // Verificar que el producto existe
+            const productoExiste = await Producto.findById(productoId);
+            if (!productoExiste) {
+                return res.status(404).json({ 
+                    success: false, 
+                    error: { 
+                        message: `Producto con ID ${productoId} no encontrado en el item ${i + 1}. El producto puede haber sido eliminado.`,
+                        productoId: productoId,
+                        sugerencia: "Verifica que el ID del producto sea correcto o que el producto aún exista en la base de datos."
+                    } 
+                });
+            }
         }
 
         // Buscar el carrito o crearlo si no existe
@@ -99,6 +122,12 @@ exports.agregarItem = async (req, res, next) => {
 
         await carrito.save();
 
+        // Poblar los productos antes de devolver la respuesta
+        await carrito.populate({
+            path: 'items.producto',
+            select: 'nombre precio stock'
+        });
+
         res.status(200).json({ 
             success: true, 
             data: carrito 
@@ -126,7 +155,10 @@ exports.eliminarItem = async (req, res, next) => {
                 } 
             },
             { new: true } // Devolver el documento actualizado
-        );
+        ).populate({
+            path: 'items.producto',
+            select: 'nombre precio stock'
+        });
 
         if (!carrito) {
             return res.status(404).json({ success: false, error: { message: 'Carrito no encontrado.' } });
@@ -154,7 +186,10 @@ exports.vaciarCarrito = async (req, res, next) => {
             { usuario: usuarioId },
             { $set: { items: [] } },
             { new: true }
-        );
+        ).populate({
+            path: 'items.producto',
+            select: 'nombre precio stock'
+        });
 
         if (!carrito) {
             return res.status(404).json({ success: false, error: { message: 'Carrito no encontrado.' } });
