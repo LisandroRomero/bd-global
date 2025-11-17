@@ -17,6 +17,7 @@ app.use('/api/productos', require('./routes/productoRoutes'));
 app.use('/api/ordenes', require('./routes/pedidoRoutes'));
 app.use('/api/categorias', require('./routes/categoriaRoutes'))
 app.use('/api/carrito', require('./routes/carritoRoutes'))
+app.use('/api/resenas', require('./routes/resenaRoutes'))
 
 // 3. MIDDLEWARE DE MANEJO GLOBAL DE ERRORES (al final de las rutas)
 app.use(errorMiddleware); 
@@ -40,12 +41,5 @@ const startServer = async () => {
 }
 
 // 4. Iniciar la aplicación llamando a la función asíncrona
-startServer(); // 👈 ¡ESTA LLAMADA ES LA QUE FALTABA!
+startServer(); 
 
-// ⚠️ ¡ELIMINA EL BLOQUE QUE ESTABA AQUÍ ABAJO!
-/*
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor corriendo en el puerto ${PORT}`);
-});
-*/
